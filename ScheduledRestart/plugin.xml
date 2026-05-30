@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Plugin name="ScheduledRestart">
+  <Version>1.0.0</Version>
+  <Author>imaximum.tech</Author>
+  <Description>
+    Daily timed server restarts with in-game warnings (10 min, 1 min) and a final countdown,
+    world save before shutdown, and a command lockdown during the final window. Coordinates with
+    the Discord bot over a shared MySQL database: publishes live player count + next-restart status,
+    posts announcements, and accepts emergency /restart and /restart cancel from Discord.
+    Provider.shutdown() only exits the process; the host (e.g. the panel's auto-restart) brings it back.
+  </Description>
+  <Target><Unturned>3.26.3.2</Unturned><RocketMod>4.9.3.18</RocketMod></Target>
+  <Commands>
+    <Command name="srestart" permission="scheduledrestart.admin">Schedule (now|minutes) or cancel a restart (admin)</Command>
+  </Commands>
+</Plugin>

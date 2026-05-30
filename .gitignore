@@ -1,0 +1,13 @@
+# Build output (the shippable DLL is tracked under dist/ instead)
+bin/
+obj/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets / runtime config
+.env
+*.configuration.xml
