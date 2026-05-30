@@ -45,3 +45,10 @@ EVENT_POLL_SECONDS = _int("EVENT_POLL_SECONDS", 10)
 
 # A status row older than this many seconds means the server is down / not reporting.
 STALE_AFTER_SECONDS = _int("STALE_AFTER_SECONDS", 90)
+
+# Bot member-list status (the text under the bot's name). Refreshed every EMBED_REFRESH_SECONDS.
+#   PRESENCE_TYPE: custom | watching | playing | listening  (custom = plain text, like Mimu)
+#   {players}/{max} are filled with the live counts.
+PRESENCE_TYPE = os.getenv("PRESENCE_TYPE", "custom")
+PRESENCE_TEMPLATE = os.getenv("PRESENCE_TEMPLATE", "🟢 Players {players}/{max}")
+PRESENCE_OFFLINE = os.getenv("PRESENCE_OFFLINE", "🔴 Server offline")

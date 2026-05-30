@@ -73,12 +73,12 @@ class RestartCog(commands.Cog):
         self.drain_events.cancel()
 
     # ---------------------------------------------------------------- embed --
-    def _build_embed(self, status: dict | None) -> discord.Embed:
+    def _parse_status(self, status: dict | None) -> tuple[bool, int, int, str]:
+        """Returns (online, players, max_players, next_restart_line) from a status row."""
         now_utc = datetime.utcnow()
         online = False
         players = max_players = 0
         next_line = "—"
-
         if status:
             age = status.get("age_seconds")
             fresh = age is not None and age <= cfg.STALE_AFTER_SECONDS
@@ -90,6 +90,10 @@ class RestartCog(commands.Cog):
                 remaining = int((nr - now_utc).total_seconds())
                 local = nr + timedelta(hours=cfg.TZ_OFFSET_HOURS)
                 next_line = f"{local.strftime('%H:%M')} (in {_humanize(remaining)})"
+        return online, players, max_players, next_line
+
+    def _build_embed(self, status: dict | None) -> discord.Embed:
+        online, players, max_players, next_line = self._parse_status(status)
 
         color = discord.Color.green() if online else discord.Color.red()
         title = f"🟢 {cfg.SERVER_NAME}" if online else f"🔴 {cfg.SERVER_NAME}"
@@ -100,6 +104,29 @@ class RestartCog(commands.Cog):
         embed.set_footer(text="updated")
         embed.timestamp = discord.utils.utcnow()
         return embed
+
+    # --------------------------------------------------------------- presence --
+    def _build_activity(self, text: str) -> discord.BaseActivity:
+        """Wrap the status text in the activity type from PRESENCE_TYPE."""
+        t = (cfg.PRESENCE_TYPE or "custom").lower()
+        if t == "playing":
+            return discord.Game(name=text)
+        if t == "watching":
+            return discord.Activity(type=discord.ActivityType.watching, name=text)
+        if t == "listening":
+            return discord.Activity(type=discord.ActivityType.listening, name=text)
+        return discord.CustomActivity(name=text)  # default: plain text, like the Mimu example
+
+    async def _update_presence(self, status: dict | None):
+        """Set the bot's member-list status to the live player count, e.g. '🟢 Players 3/100'."""
+        online, players, max_players, _ = self._parse_status(status)
+        if online:
+            text = cfg.PRESENCE_TEMPLATE.format(players=players, max=max_players)
+            state = discord.Status.online
+        else:
+            text = cfg.PRESENCE_OFFLINE
+            state = discord.Status.idle
+        await self.bot.change_presence(activity=self._build_activity(text), status=state)
 
     async def _find_or_create_status_message(self, channel: discord.abc.Messageable, status: dict | None):
         """Reuse the embed message stored in sr_status.embed_msg_id; create + persist one otherwise."""
@@ -123,13 +150,24 @@ class RestartCog(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def refresh_embed(self):
+        try:
+            status = await asyncio.to_thread(db.get_status)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ScheduledRestart] get_status failed: {e}")
+            return
+
+        # bot member-list status ("🟢 Players n/max") — updates even without a status channel
+        try:
+            await self._update_presence(status)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ScheduledRestart] presence update failed: {e}")
+
         if not cfg.STATUS_CHANNEL_ID:
             return
         channel = self.bot.get_channel(cfg.STATUS_CHANNEL_ID)
         if channel is None:
             return
         try:
-            status = await asyncio.to_thread(db.get_status)
             msg = await self._find_or_create_status_message(channel, status)
             await msg.edit(embed=self._build_embed(status))
         except discord.NotFound:
