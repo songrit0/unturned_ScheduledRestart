@@ -1,116 +1,130 @@
-# ⏰ ScheduledRestart — Unturned timed restarts + Discord control
+# ⏰ ScheduledRestart
 
-ปลั๊กอิน RocketMod ที่รีสตาร์ทเซิร์ฟเวอร์ตามเวลา (ค่าเริ่มต้น **06:00 น. ไทย**) พร้อม
-แจ้งเตือนในเกม, บันทึกโลกก่อนปิด, ล็อกคำสั่งช่วงก่อนรี และคุยกับ **Discord bot** ผ่าน
-**MySQL ตัวเดียวกับ SellVault** — โชว์สถานะผู้เล่น + สั่งรีฉุกเฉินจาก Discord ได้
+ปลั๊กอิน Unturned (RocketMod) **รีสตาร์ทเซิร์ฟเวอร์ตามเวลาอัตโนมัติ** + คุมผ่าน **Discord**
 
-```
-┌────────────────────────┐        sr_status (players, next_restart)        ┌───────────────────┐
-│  Unturned plugin (C#)  │  ───────────────────────────────────────────▶  │  Discord bot (py) │
-│  ScheduledRestart      │        sr_events (warnings, back-online)        │  embed + /status  │
-│                        │  ◀───────────────────────────────────────────  │  /restart ...     │
-└────────────────────────┘        sr_commands (emergency restart/cancel)   └───────────────────┘
-                              shared MySQL  (เดียวกับ SellVault / RedeemCode)
-```
-
-## ทำอะไรได้
-- 🕕 **รีสตาร์ทรายวันเวลาตายตัว** — `DailyRestartTimes: ["06:00"]` (ใส่หลายเวลาได้) คำนวณเป็น
-  เวลาไทย (UTC+7) ไม่ขึ้นกับ timezone ของเครื่อง Linux
-- 📢 **เตือนในเกม** ก่อน **10 นาที** และ **1 นาที** + **countdown 10→1 วินาที**
-- 💾 **บันทึกโลก (`SaveManager.save`) ก่อนปิดเซิร์ฟเวอร์**เสมอ
-- ⛔ **ล็อกทุกคำสั่ง**ของผู้เล่นทั่วไปช่วง 10 นาทีก่อนรี (แอดมิน + perm `scheduledrestart.bypass` ผ่านได้)
-- 🟢 **Discord embed** โชว์ `Players: 3/100` + เวลารีรอบถัดไป อัปเดตทุก 30 วิ + `/status`
-- 🚨 **รีฉุกเฉินจาก Discord:** `/restart in <นาที>`, `/restart now`, `/restart cancel` (เฉพาะแอดมิน)
-  — และในเกมก็มี `/srestart <now|cancel|นาที>`
+- 🕕 รีรายวันเวลาตายตัว — ค่าเริ่มต้น **06:00 น. (เวลาไทย)**
+- 📢 เตือนในเกม **ก่อน 10 นาที / 1 นาที** + นับถอยหลัง **10→1 วินาที**
+- 💾 **เซฟโลกก่อนปิดเสมอ** ของไม่หาย
+- ⛔ **ล็อกคำสั่ง**ช่วง 10 นาทีสุดท้าย (กันคนใช้ /home /tpa หนีตาย) — แอดมินใช้ได้ปกติ
+- 🟢 Discord โชว์ **`ผู้เล่น 3/100` + เวลารีรอบหน้า** อัปเดตเอง + สั่ง **รีฉุกเฉิน**ได้
 
 ---
 
-## 1) ปลั๊กอิน (C#) — build บน Windows แล้วอัปขึ้น panel
+## 🚀 เริ่มใช้งาน (3 ขั้น)
 
-> เซิร์ฟอยู่บน **RestoreMonarchy panel (Linux)** — เรา **build บนเครื่อง Windows** ที่มีไฟล์เกม
-> แล้วอัป `.dll` ขึ้น panel เท่านั้น (Mono รัน Harmony + MySql.Data ได้ เหมือน AutoCleanup/SellVault)
+### 1️⃣ เอาปลั๊กอินขึ้นเซิร์ฟ
+1. โหลดไฟล์ **[`dist/ScheduledRestart.dll`](dist/ScheduledRestart.dll)**
+2. อัปไปไว้ที่ `Rocket/Plugins/` บนเซิร์ฟเวอร์ (เช่นในหน้า RestoreMonarchy panel)
+3. รีสตาร์ทเซิร์ฟ 1 ครั้ง → ปลั๊กอินจะสร้างไฟล์ config ให้
 
-### Build
-```powershell
-# วาง DLL deps (ทำให้แล้ว — มีอยู่ใน lib/)
-#   ScheduledRestart/lib/0Harmony.dll      (จาก unturned_AutoClear)
-#   ScheduledRestart/lib/MySql.Data.dll    (จาก SellVault)
-powershell -ExecutionPolicy Bypass -File ScheduledRestart\build.ps1
-# -> ScheduledRestart\bin\ScheduledRestart.dll
+> ✅ ปลั๊กอินต้องการ `0Harmony.dll` กับ `MySql.Data.dll` ใน `Rocket/Libraries/` — ปกติมีอยู่แล้วถ้าใช้ AutoCleanup/SellVault อยู่ (ถ้าไม่มี ก๊อปจาก `ScheduledRestart/lib/` ขึ้นไปด้วย)
+
+### 2️⃣ ตั้งค่า (แก้แค่ 2 อย่าง)
+เปิดไฟล์ `Rocket/Plugins/ScheduledRestart/ScheduledRestart.configuration.xml` แล้วแก้:
+
+```xml
+<!-- เวลารีสตาร์ท (เพิ่มได้หลายรอบ) -->
+<DailyRestartTimes>
+  <Time>06:00</Time>
+  <!-- <Time>18:00</Time> -->
+</DailyRestartTimes>
+
+<!-- ต่อ MySQL ตัวเดียวกับร้านค้า (SellVault) -->
+<Database>
+  <ConnectionString>SERVER=localhost;DATABASE=unturned;UID=root;PASSWORD=123456</ConnectionString>
+  <TablePrefix>sr_</TablePrefix>
+</Database>
 ```
-ถ้า Unturned ไม่ได้อยู่ที่ `D:\SteamLibrary\...` แก้ path บนหัว `build.ps1`
 
-### Deploy ขึ้น panel
-1. อัป `ScheduledRestart.dll` → `Rocket/Plugins/`
-2. ให้แน่ใจว่า server มี (ปกติมีอยู่แล้วจาก AutoCleanup/SellVault):
-   - `Rocket/Libraries/0Harmony.dll`
-   - `Rocket/Libraries/MySql.Data.dll`
-3. รันเซิร์ฟ 1 ครั้งให้สร้าง config → แก้ `Rocket/Plugins/ScheduledRestart/ScheduledRestart.configuration.xml`
-   - `Database.ConnectionString` = ตัวเดียวกับ SellVault
-   - `DailyRestartTimes` (เพิ่มได้ เช่น `06:00`, `18:00`)
-   - `WarnBeforeSeconds` (default `600`, `60`), `CountdownSeconds`, `LockdownSeconds`
-4. ⚠️ **เปิด "Auto Restart / keep online" ใน RestoreMonarchy panel** — `Provider.shutdown()` แค่ปิด
-   process; panel เป็นตัวเด้งเซิร์ฟกลับขึ้นมา ถ้าไม่เปิด เซิร์ฟจะดับค้าง
+### 3️⃣ ⚠️ เปิด Auto Restart ใน panel
+ปลั๊กอินแค่ **สั่งปิด**เซิร์ฟ — ตัว panel เป็นคนเปิดกลับ
+→ ในหน้า **RestoreMonarchy panel เปิด "Auto Restart / Keep Online" ไว้**
+(ไม่งั้นพอถึงเวลารี เซิร์ฟจะดับค้างไม่กลับมา)
+
+**เท่านี้ก็รีอัตโนมัติ 06:00 ทุกวันแล้ว** 🎉 — ส่วน Discord อ่านต่อข้างล่าง (จะทำหรือไม่ก็ได้)
 
 ---
 
-## 2) Discord bot (Python)
+## 💬 ต่อ Discord (ไม่บังคับ)
 
-ใช้ MySQL เดียวกับปลั๊กอิน เลือกได้ 2 แบบ:
+ให้ Discord โชว์สถานะเซิร์ฟ + สั่งรีฉุกเฉินได้ ใช้ MySQL เดียวกับปลั๊กอิน
 
-### แบบ A — เสียบเข้าบอทเดิม (แนะนำ)
-ก๊อป `restart_cog.py`, `restart_db.py`, `restart_config.py` ไปไว้กับบอทเดิม แล้วใน `bot.py`:
-```python
-from restart_cog import RestartCog
-await bot.add_cog(RestartCog(bot))   # ใน setup_hook(); แล้ว sync tree ตามปกติ
-```
-เพิ่มค่าใน `.env` เดิม: `STATUS_CHANNEL_ID`, `ANNOUNCE_CHANNEL_ID`, `SR_PREFIX=sr_`, `TZ_OFFSET_HOURS=7`, `SERVER_NAME`
-
-### แบบ B — รันแยก standalone
+**วิธีง่ายสุด — รันแยกเป็นบอทของตัวเอง:**
 ```bash
 cd DiscordBot
 pip install -r requirements.txt
-copy .env.example .env      # แล้วแก้ค่า
+copy .env.example .env       # แก้ token / channel / รหัส MySQL ในไฟล์ .env
 python standalone_bot.py
 ```
 
-> บอท + MySQL ต้องอยู่ที่ที่เข้าถึง DB เดียวกับเซิร์ฟเกมได้ (เหมือนบอท SellVault ปัจจุบัน)
+ใน `.env` กรอกแค่นี้พอ:
+| ค่า | คือ |
+|-----|-----|
+| `DISCORD_TOKEN` | โทเคนบอท |
+| `GUILD_ID` | id เซิร์ฟ Discord |
+| `ADMIN_ROLE_ID` | role ที่สั่งรีได้ |
+| `STATUS_CHANNEL_ID` | ห้องที่จะโชว์สถานะ + ประกาศ |
+| `DB_*` | MySQL เดียวกับเซิร์ฟเกม |
+
+> มีบอทเศรษฐกิจ (SellVault) อยู่แล้ว? เสียบรวมได้ ไม่ต้องรันสองบอท — เอา 3 ไฟล์ `restart_cog.py`, `restart_db.py`, `restart_config.py` ไปไว้ด้วยกัน แล้วใน `bot.py` เพิ่ม `await bot.add_cog(RestartCog(bot))`
+
+### คำสั่ง Discord
+| คำสั่ง | ทำอะไร |
+|--------|--------|
+| `/status` | ดูสถานะเซิร์ฟ (ผู้เล่น + เวลารีรอบหน้า) |
+| `/restart in <นาที>` | สั่งรีในอีกกี่นาที (มี countdown ในเกม) |
+| `/restart now` | เซฟแล้วรีทันที |
+| `/restart cancel` | ยกเลิกการรีฉุกเฉิน |
+
+> สั่งในเกมก็ได้ (แอดมิน): `/srestart 5` · `/srestart now` · `/srestart cancel`
 
 ---
 
-## 3) Flow การรีสตาร์ท
-
+## 🔄 ตอนรีสตาร์ทจะเป็นแบบนี้
 ```
-T-10 นาที : "⚠ เซิร์ฟจะรีสตาร์ทในอีก 10 นาที"  + ⛔ ล็อกคำสั่งเริ่ม + โพสต์ Discord
-T-1 นาที  : "⚠ ... อีก 1 นาที"
-T-10..1 ว.: "🔄 รีสตาร์ทใน N..." (ทุกวินาที)
-T-0       : "💾 กำลังบันทึกโลก..." → SaveManager.save() → "🔄 กำลังรีสตาร์ท!" → Provider.shutdown()
-            → panel เด้งเซิร์ฟกลับ → plugin โพสต์ "🟢 ออนไลน์แล้ว — รอบถัดไป 06:00 (อีก 23h 59m)"
+ก่อน 10 นาที : "⚠ เซิร์ฟจะรีสตาร์ทในอีก 10 นาที"   + เริ่มล็อกคำสั่ง
+ก่อน 1 นาที  : "⚠ ... อีก 1 นาที"
+10 วิสุดท้าย : "🔄 รีสตาร์ทใน 10... 9... 8..."
+ถึงเวลา      : เซฟโลก → ปิดเซิร์ฟ → panel เปิดกลับ → ประกาศ "🟢 ออนไลน์แล้ว รอบหน้า 06:00"
 ```
-
-### รีฉุกเฉิน
-| Discord | ในเกม (แอดมิน) | ผล |
-|---------|----------------|-----|
-| `/restart in 5` | `/srestart 5` | ตั้งรีในอีก 5 นาที (มี warn/countdown ตามช่วง) |
-| `/restart now` | `/srestart now` | บันทึกโลกแล้วปิดทันที |
-| `/restart cancel` | `/srestart cancel` | ยกเลิกรีฉุกเฉิน กลับไปตารางปกติ |
 
 ---
 
-## ตาราง MySQL (prefix `sr_`)
-| ตาราง | ทิศ | คอลัมน์หลัก |
-|-------|-----|-------------|
-| `sr_status` | เกม→บอท | `online, players, max_players, next_restart(UTC), state, embed_msg_id` |
-| `sr_commands` | บอท→เกม | `command(restart/cancel), arg(นาที,0=now), requested_by` |
-| `sr_events` | เกม→บอท | `kind, message, posted` |
+## 🔧 อยากปรับเพิ่ม?
+แก้ในไฟล์ `ScheduledRestart.configuration.xml`:
 
-ทั้งปลั๊กอินและบอทสร้างตาราง `IF NOT EXISTS` ตอนเริ่ม (รันก่อน/หลังกันก็ได้)
+| ค่า | ความหมาย | ค่าเริ่มต้น |
+|-----|----------|-------------|
+| `DailyRestartTimes` | เวลารี (ไทย, ใส่หลายอันได้) | `06:00` |
+| `WarnBeforeSeconds` | เตือนล่วงหน้ากี่วินาที | `600`, `60` |
+| `CountdownSeconds` | นับถอยหลังกี่วินาทีท้าย | `10` |
+| `LockdownSeconds` | ล็อกคำสั่งกี่วินาทีก่อนรี | `600` |
+| `LockdownEnabled` | เปิด/ปิดการล็อกคำสั่ง | `true` |
+| `TimezoneOffsetHours` | โซนเวลา (ไทย=7) | `7` |
 
-## Troubleshooting
-- **เซิร์ฟดับไม่กลับมา** → เปิด auto-restart/keep-online ใน panel
-- **คำสั่งไม่ถูกล็อก** → ดู log `[ScheduledRestart] Harmony patch FAILED`; เช็คว่ามี `0Harmony.dll` ใน `Rocket/Libraries/`
-- **embed ไม่ขึ้น/Offline ตลอด** → เช็ค `STATUS_CHANNEL_ID`, สิทธิ์บอทในห้อง, และว่า connection string ของ
-  ปลั๊กอิน+บอทชี้ DB เดียวกัน (`SR_PREFIX` ต้องตรง `Database.TablePrefix`)
-- **เวลาเพี้ยน** → `TimezoneOffsetHours` (plugin) และ `TZ_OFFSET_HOURS` (bot) ต้อง = 7
+> แก้ config แล้วต้อง `/rocket reload ScheduledRestart` หรือรีเซิร์ฟ ถึงจะมีผล
 
-Built by imaximum.tech.
+---
+
+## ❓ แก้ปัญหา
+| อาการ | แก้ |
+|-------|-----|
+| เซิร์ฟดับแล้วไม่กลับมา | เปิด **Auto Restart** ใน panel |
+| คำสั่งไม่ถูกล็อก | เช็คว่ามี `0Harmony.dll` ใน `Rocket/Libraries/` (ดู log `[ScheduledRestart] Command-lockdown patch applied`) |
+| Discord ขึ้น Offline ตลอด | เช็ค `STATUS_CHANNEL_ID`, สิทธิ์บอทในห้อง, และ `ConnectionString` + `SR_PREFIX` ต้องตรงกับปลั๊กอิน |
+| เวลาเพี้ยน | `TimezoneOffsetHours` (ปลั๊กอิน) กับ `TZ_OFFSET_HOURS` (บอท) ต้อง = 7 |
+
+---
+
+## 🛠️ สำหรับคนอยากแก้โค้ดเอง
+```powershell
+# build บน Windows ที่ลง Unturned + VS2022 (แก้ path เกมบนหัว build.ps1 ถ้าไม่ใช่ D:\SteamLibrary)
+powershell -ExecutionPolicy Bypass -File ScheduledRestart\build.ps1
+# -> ScheduledRestart\bin\ScheduledRestart.dll
+```
+
+**ทำงานยังไง:** ปลั๊กอิน (C#) กับบอท (Python) ไม่ได้คุยกันตรงๆ แต่ผ่าน **MySQL 3 ตาราง** —
+`sr_status` (เกมเขียนสถานะ→บอทอ่าน), `sr_commands` (บอทสั่ง→เกมอ่าน), `sr_events` (เกมประกาศ→บอทโพสต์)
+สร้างอัตโนมัติตอนเริ่ม
+
+Built by imaximum.tech
