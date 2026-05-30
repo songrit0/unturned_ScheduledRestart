@@ -102,7 +102,7 @@ python standalone_bot.py
 | `LockdownEnabled` | เปิด/ปิดการล็อกคำสั่ง | `true` |
 | `TimezoneOffsetHours` | โซนเวลา (ไทย=7) | `7` |
 
-> แก้ config แล้วต้อง `/rocket reload ScheduledRestart` หรือรีเซิร์ฟ ถึงจะมีผล
+> ⚠️ แก้ config แล้วต้อง **restart เซิร์ฟเต็มๆ (Stop → Start)** ถึงจะมีผล — **อย่าใช้ `/rocket reload`** เพราะปลั๊กอินใช้ Harmony patch ซึ่ง hot-reload บน Mono ไม่ได้ (จะเด้ง `BadImageFormatException`)
 
 ---
 
@@ -110,8 +110,10 @@ python standalone_bot.py
 | อาการ | แก้ |
 |-------|-----|
 | เซิร์ฟดับแล้วไม่กลับมา | เปิด **Auto Restart** ใน panel |
-| คำสั่งไม่ถูกล็อก | เช็คว่ามี `0Harmony.dll` ใน `Rocket/Libraries/` (ดู log `[ScheduledRestart] Command-lockdown patch applied`) |
-| Discord ขึ้น Offline ตลอด | เช็ค `STATUS_CHANNEL_ID`, สิทธิ์บอทในห้อง, และ `ConnectionString` + `SR_PREFIX` ต้องตรงกับปลั๊กอิน |
+| `BadImageFormatException` ตอน reload | อย่าใช้ `/rocket reload` กับปลั๊กอินนี้ — **Stop → Start เซิร์ฟเต็มๆ** (Harmony hot-reload บน Mono ไม่ได้) |
+| คำสั่งไม่ถูกล็อก | (1) **แอดมิน + perm `scheduledrestart.bypass` ยกเว้นเสมอ** ลองด้วยผู้เล่นธรรมดา · (2) เช็ค log `[ScheduledRestart] Command-lockdown patch applied` |
+| Discord 🔴 แต่ `/status` มีข้อมูลผู้เล่น/เวลารี | field `online` ค้าง = DLL เก่ายังรัน (อัปตัวใหม่ + **full restart**) หรือปลั๊กอินหยุด tick |
+| Discord 🔴 และ `/status` ไม่มีข้อมูลเลย | คนละ DB — `ConnectionString` (ปลั๊กอิน) ต้อง = `DB_*` (บอท) และ `TablePrefix`=`SR_PREFIX`=`sr_` |
 | เวลาเพี้ยน | `TimezoneOffsetHours` (ปลั๊กอิน) กับ `TZ_OFFSET_HOURS` (บอท) ต้อง = 7 |
 
 ---
