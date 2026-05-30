@@ -101,10 +101,15 @@ namespace ScheduledRestart
                 using (MySqlConnection c = new MySqlConnection(_conn))
                 {
                     c.Open();
+                    // NOTE: updated_at is set explicitly (NOT left to ON UPDATE CURRENT_TIMESTAMP).
+                    // An upsert whose values all match the existing row is a MySQL no-op and would
+                    // leave updated_at frozen, making the bot's freshness check flip the server to
+                    // "offline" on an idle (0-player, unchanged) server. NOW() always differs from the
+                    // stored value across writes, so this forces the timestamp to advance every time.
                     using (MySqlCommand cmd = new MySqlCommand(
-                        "INSERT INTO `" + _status + "` (id, online, players, max_players, next_restart, state) "
-                        + "VALUES (1,@o,@p,@m,@n,@s) "
-                        + "ON DUPLICATE KEY UPDATE online=@o, players=@p, max_players=@m, next_restart=@n, state=@s;", c))
+                        "INSERT INTO `" + _status + "` (id, online, players, max_players, next_restart, state, updated_at) "
+                        + "VALUES (1,@o,@p,@m,@n,@s, NOW()) "
+                        + "ON DUPLICATE KEY UPDATE online=@o, players=@p, max_players=@m, next_restart=@n, state=@s, updated_at=NOW();", c))
                     {
                         cmd.Parameters.AddWithValue("@o", online ? 1 : 0);
                         cmd.Parameters.AddWithValue("@p", players);
