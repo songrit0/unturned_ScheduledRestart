@@ -203,10 +203,10 @@ namespace ScheduledRestart
                     if (secsLeft <= cfg.WarnBeforeSeconds[i])
                     {
                         _warnSent[i] = true;
-                        string human = Humanize(cfg.WarnBeforeSeconds[i]);
+                        int secs = cfg.WarnBeforeSeconds[i];
                         Message m = _isEmergency ? cfg.MsgEmergencyScheduled : cfg.MsgWarn;
-                        Broadcast(m, "{time}", human, Color.yellow);
-                        QueueEvent("warn", "⚠ รีสตาร์ทในอีก " + human);
+                        BroadcastTime(m, secs, Color.yellow);
+                        QueueEvent("warn", "⚠ รีสตาร์ทในอีก " + Humanize(secs));
                     }
                 }
             }
@@ -323,9 +323,9 @@ namespace ScheduledRestart
 
             if (announce && emergency)
             {
-                string human = Humanize((int)Math.Round(secsLeft));
-                Broadcast(cfg.MsgEmergencyScheduled, "{time}", human, Color.yellow);
-                QueueEvent("emergency", "⚠ แอดมินสั่งรีสตาร์ทฉุกเฉินในอีก " + human);
+                int secs = (int)Math.Round(secsLeft);
+                BroadcastTime(cfg.MsgEmergencyScheduled, secs, Color.yellow);
+                QueueEvent("emergency", "⚠ แอดมินสั่งรีสตาร์ทฉุกเฉินในอีก " + Humanize(secs));
             }
         }
 
@@ -417,6 +417,19 @@ namespace ScheduledRestart
             return m == 0 ? h + " ชม." : h + " ชม. " + m + " นาที";
         }
 
+        /// <summary>English units: "10 minutes", "1 hour 5 minutes", "30 seconds". Used by the {time_en} token.</summary>
+        private static string HumanizeEn(int seconds)
+        {
+            if (seconds < 0) seconds = 0;
+            if (seconds < 60) return seconds + (seconds == 1 ? " second" : " seconds");
+            int mins = seconds / 60;
+            if (mins < 60) return mins + (mins == 1 ? " minute" : " minutes");
+            int h = mins / 60, m = mins % 60;
+            string hs = h + (h == 1 ? " hour" : " hours");
+            if (m == 0) return hs;
+            return hs + " " + m + (m == 1 ? " minute" : " minutes");
+        }
+
         // ---------------------------------------------------------------------
         //  Chat + queue plumbing
         // ---------------------------------------------------------------------
@@ -424,6 +437,15 @@ namespace ScheduledRestart
         {
             if (msg == null || string.IsNullOrEmpty(msg.Text)) return;
             string text = msg.Text.Replace(token, value);
+            UnturnedChat.Say(text, UnturnedChat.GetColorFromName(msg.Color, fallback));
+        }
+
+        /// <summary>Broadcast a "time left" message, filling {time} (Thai) and {time_en} (English).</summary>
+        private static void BroadcastTime(Message msg, int seconds, Color fallback)
+        {
+            if (msg == null || string.IsNullOrEmpty(msg.Text)) return;
+            string text = msg.Text.Replace("{time_en}", HumanizeEn(seconds))
+                                  .Replace("{time}", Humanize(seconds));
             UnturnedChat.Say(text, UnturnedChat.GetColorFromName(msg.Color, fallback));
         }
 

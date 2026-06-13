@@ -64,12 +64,14 @@ namespace ScheduledRestart
         public string BypassPermission;
 
         // ---- in-game broadcasts (Thai | English) ----
-        public Message MsgWarn;        // {time} -> humanized, e.g. "10 นาที"
+        // {time}    -> humanized Thai, e.g. "10 นาที"  (use in the Thai part)
+        // {time_en} -> humanized English, e.g. "10 minutes"  (use in the English part)
+        public Message MsgWarn;        // {time} / {time_en}
         public Message MsgCountdown;   // {seconds}
         public Message MsgSaving;
         public Message MsgRestartNow;
         public Message MsgLockdownBlocked;
-        public Message MsgEmergencyScheduled; // {time}
+        public Message MsgEmergencyScheduled; // {time} / {time_en}
         public Message MsgEmergencyCancelled;
 
         public void LoadDefaults()
@@ -91,7 +93,7 @@ namespace ScheduledRestart
             BypassPermission = "scheduledrestart.bypass";
 
             MsgWarn = new Message(
-                "⚠ เซิร์ฟเวอร์จะรีสตาร์ทในอีก {time} | Server restarting in {time}", "yellow");
+                "⚠ เซิร์ฟเวอร์จะรีสตาร์ทในอีก {time} | Server restarting in {time_en}", "yellow");
             MsgCountdown = new Message(
                 "🔄 รีสตาร์ทใน {seconds}... | Restarting in {seconds}...", "red");
             MsgSaving = new Message(
@@ -101,7 +103,7 @@ namespace ScheduledRestart
             MsgLockdownBlocked = new Message(
                 "⛔ เซิร์ฟเวอร์กำลังจะรีสตาร์ท ใช้คำสั่งไม่ได้ในช่วงนี้ | Commands are locked before restart", "red");
             MsgEmergencyScheduled = new Message(
-                "⚠ แอดมินสั่งรีสตาร์ทฉุกเฉินในอีก {time} | Emergency restart in {time}", "yellow");
+                "⚠ แอดมินสั่งรีสตาร์ทฉุกเฉินในอีก {time} | Emergency restart in {time_en}", "yellow");
             MsgEmergencyCancelled = new Message(
                 "✅ ยกเลิกการรีสตาร์ทแล้ว | Restart cancelled", "green");
         }
